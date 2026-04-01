@@ -26,7 +26,7 @@ namespace BLE_SERIAL_TERMINAL
 
         private Guna2TextBox txtLogs;
 
-        // 🔥 NEW: Status Indicator
+        // NEW: Status Indicator
         private Label lblStatus;
 
         protected override void Dispose(bool disposing)
@@ -83,7 +83,7 @@ namespace BLE_SERIAL_TERMINAL
             btnConnect.PressedColor = Color.FromArgb(0, 70, 130);
             btnConnect.ForeColor = Color.White;
 
-            // 🔥 Status Label
+            // Status Label
             lblStatus.Location = new Point(1025, 25);
             lblStatus.Size = new Size(150, 20);
             lblStatus.Text = "● Disconnected";

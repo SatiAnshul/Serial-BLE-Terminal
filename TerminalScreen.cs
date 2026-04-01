@@ -277,22 +277,69 @@ namespace BLE_SERIAL_TERMINAL
         {
             try
             {
-                watcher?.Stop(); if (rxCharacteristic != null)
+                Log("Initiating disconnect...");
+
+                // 1. Stop the scanner if it's running
+                watcher?.Stop();
+
+                // 2. Cleanup BLE Characteristics
+                if (rxCharacteristic != null)
                 {
-                    rxCharacteristic.ValueChanged -= Rx_ValueChanged; // Disable notifications (VERY IMPORTANT)
-                                                                      
-                    await rxCharacteristic.WriteClientCharacteristicConfigurationDescriptorAsync( GattClientCharacteristicConfigurationDescriptorValue.None); }
-                // Force close connection
-                bleDevice?.Dispose();
-                bleDevice = null; 
+                    try
+                    {
+                        // Unsubscribe from hardware events
+                        rxCharacteristic.ValueChanged -= Rx_ValueChanged;
+
+                        // Tell the device to stop notifying
+                        await rxCharacteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
+                            GattClientCharacteristicConfigurationDescriptorValue.None);
+                    }
+                    catch { /* Device might be out of range already */ }
+                }
+
+                // 3. THE FORCE BREAK: Close the GATT Session explicitly
+                if (bleDevice != null)
+                {
+                    try
+                    {
+                        // We create a session handle specifically to tell Windows to drop the link
+                        using (var session = await GattSession.FromDeviceIdAsync(bleDevice.BluetoothDeviceId))
+                        {
+                            session.MaintainConnection = false;
+                            // Disposing the session here (via 'using') triggers the hardware hang-up
+                        }
+                    }
+                    catch { /* Session might already be closed */ }
+
+                    bleDevice.Dispose();
+                }
+
+                // 4. Cleanup Serial Port (Classic Bluetooth/COM)
+                if (serialPort != null)
+                {
+                    if (serialPort.IsOpen) serialPort.Close();
+                    serialPort.Dispose();
+                    serialPort = null;
+                }
+
+                // 5. Reset UI and Variables
+                bleDevice = null;
                 txCharacteristic = null;
                 rxCharacteristic = null;
                 isConnected = false;
-                btnConnect.Text = "Connect"; Log("Disconnected ");
-                if (serialPort != null && serialPort.IsOpen) { serialPort.Close(); serialPort.Dispose(); serialPort = null; }
+
+                // 6. Force Garbage Collection 
+                // This ensures Windows releases the BLE radio handles immediately
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
                 UpdateConnectionUI(false);
-            } 
-            catch (Exception ex) { Log("Disconnect Error: " + ex.Message); } 
+                Log("Disconnected successfully.");
+            }
+            catch (Exception ex)
+            {
+                Log("Disconnect Error: " + ex.Message);
+            }
         }
 
         // ================= CONNECT =================
